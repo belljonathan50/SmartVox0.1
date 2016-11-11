@@ -1,0 +1,58 @@
+.red {
+  color: red;
+}
+
+#performance {
+  position: relative;
+}
+
+.video-wrapper {
+  height: 0;
+  padding-bottom: 56.25%;
+  position: relative;
+
+  #video {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+}
+
+#infos {
+  font-size: 0.8rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  text-align: center;
+  width: 100%;
+  z-index: 2;
+  line-height: 2rem;
+}
+
+.env #infos {
+  display: none;
+}
+
+#reload {
+  position: absolute;
+  z-index: 10;
+  top: 2px;
+  left: 2px;
+  padding: 4px 6px;
+  background-color: rgba(255, 0, 0, 0.5);
+}
+
+// override active state on buttons
+#conductor .waves-basic-controllers .btn.active {
+  background-color: #464646;
+
+  &:hover {
+    background-color: #686868
+  }
+
+  &:active {
+    background-color: #909090;
+  }
+}
