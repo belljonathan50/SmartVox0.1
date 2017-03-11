@@ -10,32 +10,32 @@ const score = {
     },
     'soprano-2': {
       type: 'performer',
-      file: 'videos/soprano-2.mp4',
+      file: 'videos/soprano-1.mp4',
     },
     'mezzo': {
       type: 'performer',
-      file: 'videos/mezzo.mp4',
+      file: 'videos/soprano-1.mp4',
     },
     'alto': {
       type: 'performer',
-      file: 'videos/alto.mp4',
+      file: 'videos/soprano-1.mp4',
     },
     // env
     'env-1': {
       type: 'env',
-      file: 'videos/env-1.mp4',
+      file: 'videos/soprano-1.mp4',
     },
     'env-2': {
       type: 'env',
-      file: 'videos/env-2.mp4',
+      file: 'videos/soprano-1.mp4',
     },
     'env-3': {
       type: 'env',
-      file: 'videos/env-3.mp4',
+      file: 'videos/soprano-1.mp4',
     },
     'env-4': {
       type: 'env',
-      file: 'videos/env-4.mp4',
+      file: 'videos/soprano-1.mp4',
     },
   },
   sections: {

@@ -1,17 +1,15 @@
 import * as soundworks from 'soundworks/client';
 import viewTemplates from '../shared/viewTemplates';
 import viewContent from '../shared/viewContent';
-import PlayerExperience from './PlayerExperience.js';
+import PlayerExperience from './PlayerExperience';
+import VideoLoader from '../shared/services/VideoLoader';
 
-// launch application when document is fully loaded
 window.addEventListener('load', () => {
   const config = window.soundworksConfig;
   soundworks.client.init(config.clientType, config);
   soundworks.client.setViewContentDefinitions(viewContent);
   soundworks.client.setViewTemplateDefinitions(viewTemplates);
 
-  // create client side (player) experience
-  const experience = new PlayerExperience();
-  // start the client
+  const experience = new PlayerExperience(config.fullScreen);
   soundworks.client.start();
 });

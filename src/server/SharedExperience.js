@@ -15,7 +15,7 @@ export default class SharedExperience extends Experience {
 
     this.sharedConfig = this.require('shared-config');
     this.sharedConfig.share('score', 'player');
-    this.sharedConfig.share('score.sections', 'conductor');
+    this.sharedConfig.share('score', 'conductor');
 
     // configure conductor
     this.players = new Set();
@@ -26,8 +26,8 @@ export default class SharedExperience extends Experience {
 
   start() {
     const sections = this.sharedConfig.get('score.sections');
+    const delay = this.sharedConfig.get('conductorDelay');
     // added delay between a trigger and its execution
-    const delay = this.sharedConfig.get('delay');
     // listen sections
     Object.keys(sections).forEach((sectionName) => {
       let calledOnce = false;

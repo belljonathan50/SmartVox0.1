@@ -1,22 +1,5 @@
-TODOS
+- volume controls for envs (ok)
+- fix seek (ok)
+- update label only when it changes (ok)
+- service for video loading
 
-## clients
-- btn reload (ok)
-- write the chosen part (ok)
-- video pause immediately after after first click
-  alert: wait (ok)
-
-## controller
-- play / pause / stop
-- change parts trigger `pause` (ok)
-- feedback on number of ready clients (ok)
-- trigger reload on every client (ok)
-
-## general
-- rethink synchro
-
-
-
-Notes Jonathan:
-- Si redémarrage server, reload tous les clients en premier
-- Avoir un client ouvert à côté du conductor pour voir si quelque chose deconne

@@ -23,30 +23,39 @@ config.setup.labels = labels;
 config.setup.maxClientsPerPosition = 10;
 // add the score to the configuration
 config.score = score;
+// configure delay between conductor trigger and actual execution
+config.conductorDelay = 2; // in seconds
 
 // initialize application with configuration options.
 soundworks.server.init(config);
 
 const sharedParams = soundworks.server.require('shared-params');
 sharedParams.addText('numClients', 'Number Clients Ready', 0, 'conductor');
-sharedParams.addEnum('transport', 'Transport', ['Start', 'Pause', 'Stop'], 'Stop', ['player', 'conductor']);
+
+sharedParams.addEnum('transport', 'Transport', ['Start', 'Pause', 'Stop'], 'Stop', null);
 sharedParams.addText('currentSection', 'Current Section', '');
 
-const sections = score.sections;
-
-for (let key in sections) {
-  const section = sections[key];
+for (let key in score.sections) {
+  const section = score.sections[key];
   const min = parseInt(section.time / 60, 10);
   const sec = section.time % 60;
   const label = `${section.label} - ${min}:${sec} (${section.time} sec)`;
   // send to 'dummy' client
-  sharedParams.addTrigger(key, label, 'player');
+  sharedParams.addTrigger(key, label, null);
 }
 
-// playback rate
-sharedParams.addNumber('playbackRate', 'Playback Rate', 0.5, 1.5, 0.01, 1, 'player');
-sharedParams.addNumber('volume', 'Volume', 0, 1, 0.01, 1, 'player');
-sharedParams.addNumber('seek', 'Seek', 0, score.duration, 1, 0, 'player');
+sharedParams.addNumber('seek', 'Seek', 0, score.duration, 1, 0, null);
+sharedParams.addNumber('playbackRate', 'Playback Rate', 0.5, 1.5, 0.01, 1, null);
+
+// volumes
+sharedParams.addNumber('volume:performers', 'Volume performers', 0, 1, 0.01, 1, null);
+sharedParams.addNumber('volume:env', 'Volume environments', 0, 1, 0.01, 1, null);
+
+for (let name in score.parts) {
+  if (score.parts[name].type === 'env')
+    sharedParams.addNumber(`volume:env:${name}`, `Volume ${name}`, 0, 1, 0.01, 1, null);
+}
+
 sharedParams.addTrigger('reload', 'reload', 'player');
 
 // define the configuration object to be passed to the `.ejs` template
@@ -59,6 +68,7 @@ soundworks.server.setClientConfigDefinition((clientType, config, httpRequest) =>
     version: config.version,
     defaultType: config.defaultClient,
     assetsDomain: config.assetsDomain,
+    fullScreen: false,
   };
 });
 
