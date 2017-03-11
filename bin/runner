@@ -2,6 +2,7 @@
 var fse = require('fs-extra');
 var watch = require('watch');
 var path = require('path');
+var uglifyJS = require('uglifyjs');
 var util = require('util');
 
 var javascripts = require('./javascripts');
@@ -9,6 +10,8 @@ var log = require('./log');
 var server = require('./server');
 var styles = require('./styles');
 var cwd = process.cwd();
+
+'use strict';
 
 // polyfill Object.assign for old nodes
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/assign
@@ -36,7 +39,10 @@ if (typeof Object.assign != 'function') {
   })();
 }
 
-'use strict';
+// http://stackoverflow.com/questions/3446170/escape-string-for-use-in-javascript-regex
+function escapeRegExp(str) {
+  return str.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, "\\$&");
+}
 
 /**
  * Options for babel transpiling.
@@ -90,8 +96,15 @@ var clientDistDirectory = path.join(cwd, 'client');
 var clientPublicDirectory = path.join(cwd, 'public', 'js');
 // common javascript directories (indexes must match)
 // directories must exists when the script is launched
-var commonSrcDirectories = [path.join(cwd, 'src', 'common')];
-var commonDistDirectories = [path.join(cwd, 'common')];
+var sharedSrcDirectories = [
+  path.join(cwd, 'src', 'shared'),
+  path.join(cwd, 'src', 'client', 'shared'),
+];
+
+var sharedDistDirectories = [
+  path.join(cwd, 'shared'),
+  path.join(cwd, 'client', 'shared'),
+];
 
 /**
  * Define which file should be ignored by every command.
@@ -128,13 +141,32 @@ function isAllowed(filename, ensureFile) {
 /**
  * Returns a list of the file in a given folder recursively.
  */
-function _getFileList(folder, callback) {
+function _getFileList(folder, excludeDirectories, callback) {
   var files = [];
+
+  excludeDirectories = excludeDirectories.map(function(v) {
+    var pattern = escapeRegExp('^' + v);
+    return new RegExp(pattern);
+  });
+
+  function isExcluded(path) {
+    for (var i = 0; i < excludeDirectories.length; i++) {
+      if (excludeDirectories[i].test(path))
+        return true;
+    }
+
+    return false;
+  }
 
   fse.walk(folder)
     .on('data', function(item) {
-      if (item.stats.isFile() && isAllowed(item.path))
+      // console.log(excludeDirectories, item.path, iExcluded(item.path));
+      if (item.stats.isFile() &&
+          isAllowed(item.path) &&
+          !isExcluded(item.path)
+      ) {
         files.push(item.path);
+      }
     })
     .on('end', function() {
       callback(files);
@@ -153,9 +185,9 @@ var commands = {
     // watch javascript server files
     watchServerJavascriptFiles(serverSrcDirectory, serverDistDirectory);
     // watch javascript client files
-    watchClientJavascriptFiles(clientSrcDirectory, clientDistDirectory, clientPublicDirectory);
+    watchClientJavascriptFiles(clientSrcDirectory, clientDistDirectory, clientPublicDirectory, sharedSrcDirectories);
     // watch common javascript files
-    watchCommonJavascriptFiles(commonSrcDirectories, commonDistDirectories);
+    watchSharedJavascriptFiles(sharedSrcDirectories, sharedDistDirectories);
 
     server.start();
   },
@@ -172,6 +204,13 @@ var commands = {
    */
   start: function() {
     server.start();
+  },
+
+  /**
+   * Minify all files in `clientPublicDirectory`
+   */
+  minify: function() {
+    minify();
   },
 };
 
@@ -248,23 +287,50 @@ function watchServerJavascriptFiles(srcDirectory, distDirectory) {
 /**
  * Watch client js files.
  */
-function watchClientJavascriptFiles(srcDirectory, distDirectory, publicDirectory) {
+function watchClientJavascriptFiles(srcDirectory, distDirectory, publicDirectory, sharedSrcDirectories) {
   watch.createMonitor(srcDirectory, watchOptions, function(monitor) {
     var transpiler = javascripts.getTranspiler(srcDirectory, distDirectory, isAllowed, babelOptions, browserifyOptions);
 
+    const sharedRegExp = sharedSrcDirectories.map(function(dirname) {
+      dirname = dirname[dirname.length - 1] !== path.sep ? dirname + path.sep : dirname;
+      const pattern = escapeRegExp('^' + dirname);
+      return new RegExp(pattern);
+    });
+
+    function isSharedFile(filename) {
+      for (var i = 0; i < sharedRegExp.length; i++) {
+        if (sharedRegExp[i].test(filename))
+          return true;
+      }
+
+      return false;
+    }
+
     monitor.on('created', function(filename) {
-      if (isAllowed(filename))
-        transpiler.transpile(filename, [], function() { transpiler.bundle(filename, publicDirectory, true); });
+      if (isAllowed(filename)) {
+        transpiler.transpile(filename, [], function() {
+          if (!isSharedFile(filename))
+            transpiler.bundle(filename, publicDirectory, true);
+        });
+      }
     });
 
     monitor.on('changed', function(filename) {
-      if (isAllowed(filename))
-        transpiler.transpile(filename, [], function() { transpiler.bundle(filename, publicDirectory, true); });
+      if (isAllowed(filename)) {
+        transpiler.transpile(filename, [], function() {
+          if (!isSharedFile(filename))
+            transpiler.bundle(filename, publicDirectory, true);
+        });
+      }
     });
 
     monitor.on('removed', function(filename) {
-      if (isAllowed(filename, false))
-        transpiler.delete(filename, function() { transpiler.bundle(filename, publicDirectory, false); });
+      if (isAllowed(filename, false)) {
+        transpiler.delete(filename, function() {
+          if (!isSharedFile(filename))
+            transpiler.bundle(filename, publicDirectory, true);
+        });
+      }
     });
   });
 }
@@ -273,7 +339,7 @@ function watchClientJavascriptFiles(srcDirectory, distDirectory, publicDirectory
  * Watch common javascript files. Restarts the server as these files can beused server side.
  * For client side, watchify should do the job.
  */
-function watchCommonJavascriptFiles(srcDirectories, distDirectories) {
+function watchSharedJavascriptFiles(srcDirectories, distDirectories) {
   srcDirectories.forEach(function(srcDirectory, index) {
     fse.stat(srcDirectory, function(err, stats) {
       if (err || !stats.isDirectory)
@@ -312,12 +378,12 @@ function watchCommonJavascriptFiles(srcDirectories, distDirectories) {
 
 function transpile() {
   // 1. transpile common files
-  var length = commonSrcDirectories.length;
+  var length = sharedSrcDirectories.length;
   var commonJsIndex = 0;
 
   function transpileCommonFiles() {
-    var srcDirectory = commonSrcDirectories[commonJsIndex];
-    var distDirectory = commonDistDirectories[commonJsIndex];
+    var srcDirectory = sharedSrcDirectories[commonJsIndex];
+    var distDirectory = sharedDistDirectories[commonJsIndex];
 
     // define what to do next (transpile next common folder or server folder)
     function next() {
@@ -333,7 +399,7 @@ function transpile() {
       if (err || !stat.isDirectory())
         return next();
 
-      _getFileList(srcDirectory, function(files) {
+      _getFileList(srcDirectory, [], function(files) {
         var transpiler = javascripts.getTranspiler(srcDirectory, distDirectory, isAllowed, babelOptions);
         transpiler.transpile(undefined, files, next);
       });
@@ -344,7 +410,7 @@ function transpile() {
   function transpileServerFiles() {
     var next = transpileClientFiles;
 
-    _getFileList(serverSrcDirectory, function(files) {
+    _getFileList(serverSrcDirectory, sharedSrcDirectories, function(files) {
       var transpiler = javascripts.getTranspiler(serverSrcDirectory, serverDistDirectory, isAllowed, babelOptions);
       transpiler.transpile(undefined, files, next);
     });
@@ -354,7 +420,7 @@ function transpile() {
   function transpileClientFiles() {
     var next = rebundleClientFiles;
 
-    _getFileList(clientSrcDirectory, function(files) {
+    _getFileList(clientSrcDirectory, sharedSrcDirectories, function(files) {
       var transpiler = javascripts.getTranspiler(clientSrcDirectory, clientDistDirectory, isAllowed, babelOptions);
       transpiler.transpile(undefined, files, next);
     });
@@ -362,9 +428,12 @@ function transpile() {
 
   // 4. rebundle client files
   function rebundleClientFiles() {
-    // find all first level directories in clientDistDirectory
     var clientIndexes = fse.readdirSync(clientSrcDirectory).filter(function(filename) {
+      // filter first level folders in clientDistDirectory
       return fse.statSync(path.join(clientSrcDirectory, filename)).isDirectory();
+    }).filter(function(dirname) {
+      // filter shared folders
+      return sharedSrcDirectories.indexOf(path.join(clientSrcDirectory, dirname)) === -1
     }).map(function(dirname) {
       return path.join(clientSrcDirectory, dirname, 'index.js');
     });
@@ -383,6 +452,35 @@ function transpile() {
   styles.process(cssSrcDirectory, cssPublicDirectory, isAllowed, sassOptions);
 }
 
+function minify() {
+  _getFileList(clientPublicDirectory, [], function(files) {
+    for (var i = files.length - 1; i >= 0; i--) {
+      var filename = files[i];
+
+      if (/\.min\.js$/.test(filename)) {
+        fse.removeSync(filename);
+        log.deleteFile(filename);
+
+        files.splice(i, 1);
+      }
+    }
+
+    files.forEach(function(filename) {
+      log.minifyStart(filename);
+
+      var outFilename = filename.replace(/\.js$/, '.min.js');
+      var startTime = new Date().getTime();
+      var result = uglifyJS.minify(filename);
+      // console.log(result.code); // minified output
+      fse.outputFile(outFilename, result.code, function(err) {
+        if (err)
+          return console.error(err.message);
+
+        log.minifySuccess(filename, outFilename, startTime);
+      });
+    });
+  });
+}
 
 /* --------------------------------------------------------------------------
  * Process and execute the given command.
@@ -404,6 +502,9 @@ switch (command) {
     break;
   case '--start':
     commands.start();
+    break;
+  case '--minify':
+    commands.minify();
     break;
 }
 

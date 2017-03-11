@@ -10,36 +10,14 @@ export default class SharedExperience extends Experience {
 
     this.placer = this.require('placer');
     this.sync = this.require('sync');
-    this.osc = this.require('osc');
+    // this.osc = this.require('osc');
+    this.sharedParams = this.require('shared-params');
 
     this.sharedConfig = this.require('shared-config');
     this.sharedConfig.share('score', 'player');
     this.sharedConfig.share('score.sections', 'conductor');
 
-    const duration = this.sharedConfig.get('score.duration');
     // configure conductor
-    this.sharedParams = this.require('shared-params');
-    this.sharedParams.addText('numClients', 'Number Clients Ready', 0, 'conductor');
-    this.sharedParams.addEnum('transport', 'Transport', ['Start', 'Pause', 'Stop'], 'Stop', ['player', 'conductor']);
-    this.sharedParams.addText('currentSection', 'Current Section', '');
-
-    const sections = this.sharedConfig.get('score.sections');
-
-    for (let key in sections) {
-      const section = sections[key];
-      const min = parseInt(section.time / 60);
-      const sec = section.time % 60;
-      const label = `${section.label} - ${min}:${sec} (${section.time} sec)`;
-      // send to 'dummy' client
-      this.sharedParams.addTrigger(key, label, 'player');
-    }
-
-    // playback rate
-    this.sharedParams.addNumber('playbackRate', 'Playback Rate', 0.5, 1.5, 0.01, 1, 'player');
-    this.sharedParams.addNumber('volume', 'Volume', 0, 1, 0.01, 1, 'player');
-    this.sharedParams.addNumber('seek', 'Seek', 0, duration, 1, 0, 'player');
-
-    this.sharedParams.addTrigger('reload', 'reload', 'player');
     this.players = new Set();
 
     this.currentTime = 0;
@@ -64,7 +42,7 @@ export default class SharedExperience extends Experience {
         this.currentTime = sections[sectionName].time;
         this.broadcast('player', null, 'section', this.currentTime);
         console.log(sectionName, this.currentTime);
-        this.osc.send('/section', [this.currentTime]);
+        // this.osc.send('/section', [this.currentTime]);
       });
     });
 
@@ -92,16 +70,10 @@ export default class SharedExperience extends Experience {
       console.log(value, this.currentTime);
       const triggerTime = syncTime + delay;
       this.broadcast('player', null, 'transport', value, this.currentTime, triggerTime);
-
-      this.osc.send('/transport', [value.toLowerCase(), delay]);
+      // this.osc.send('/transport', [value.toLowerCase(), delay]);
     });
   }
 
-  /**
-   * If anything needs to happen when a client enters the performance (*i.e.*
-   * starts the experience on the client side), write it in the `enter`
-   * method.
-   */
   enter(client) {
     super.enter(client);
 

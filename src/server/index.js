@@ -1,112 +1,61 @@
-// Enable sourceMaps in node
 import 'source-map-support/register';
-
-// Import Soundworks library (server side) and server side experience
 import * as soundworks from 'soundworks/server';
 import SharedExperience from './SharedExperience';
+import score from './score';
 
-const title = 'Smart Vox';
-const videoDuration = 20 * 60; // in seconds
-const delay = 2; // in seconds
+import defaultConfig from './config/default';
 
-const osc = {
-  sendAddress: '127.0.0.1', // change to the ip address of the computer running max
-  sendPort: 57120,
-};
+let config = null;
 
-// score definition
-const score = {
-  duration: videoDuration,
-  parts: {
-    // singers
-    'soprano-1': {
-      file: 'videos/soprano-1.mp4',
-    },
-    'soprano-2': {
-      file: 'videos/soprano-2.mp4',
-    },
-    'mezzo': {
-      file: 'videos/mezzo.mp4',
-    },
-    'alto': {
-      file: 'videos/alto.mp4',
-    },
-    // env
-    'env-1': {
-      file: 'videos/env-1.mp4',
-    },
-    'env-2': {
-      file: 'videos/env-2.mp4',
-    },
-    'env-3': {
-      file: 'videos/env-3.mp4',
-    },
-    'env-4': {
-      file: 'videos/env-4.mp4',
-    },
-  },
-  sections: {
-    alpha: {
-      time: 0,
-      label: 'Au commencement',
-    },
-    beta: {
-      time: 117,
-      label: 'Ohné lui',
-    },
-    gamma: {
-      time: 270,
-      label: `C'est un soir`,
-    },
-    delta: {
-      time: 405,
-      label: 'La glebe',
-    },
-    epsilon: {
-      time: 495,
-      label: 'Je sur nous',
-    },
-    dzeta: {
-      time: 600,
-      label: 'Plafond du ciel',
-    },
-    eta: {
-      time: 660,
-      label: 'Ce que ce que',
-    },
-    theta: {
-      time: 765,
-      label: 'Commencement fin',
-    },
-    iota: {
-      time: 850,
-      label: 'Les choses sont',
-    },
-    kappa: {
-      time: 945,
-      label: 'Je suis avec toi',
-    },
-  },
-};
+switch(process.env.ENV) {
+  default:
+    config = defaultConfig;
+    break;
+}
 
-// define labels from
+// configure express environment ('production' enables cache system)
+process.env.NODE_ENV = config.env;
+
+config.appName = score.title;
+// configure setup
 const labels = Object.keys(score.parts);
+config.setup.labels = labels;
+config.setup.maxClientsPerPosition = 10;
+// add the score to the configuration
+config.score = score;
 
-// Initialize application with configuration options.
-soundworks.server.init({
-  appName: title,
-  setup: { labels, maxClientsPerPosition: 10 },
-  score: score,
-  delay: delay,
-  osc: osc,
-});
+// initialize application with configuration options.
+soundworks.server.init(config);
+
+const sharedParams = soundworks.server.require('shared-params');
+sharedParams.addText('numClients', 'Number Clients Ready', 0, 'conductor');
+sharedParams.addEnum('transport', 'Transport', ['Start', 'Pause', 'Stop'], 'Stop', ['player', 'conductor']);
+sharedParams.addText('currentSection', 'Current Section', '');
+
+const sections = score.sections;
+
+for (let key in sections) {
+  const section = sections[key];
+  const min = parseInt(section.time / 60, 10);
+  const sec = section.time % 60;
+  const label = `${section.label} - ${min}:${sec} (${section.time} sec)`;
+  // send to 'dummy' client
+  sharedParams.addTrigger(key, label, 'player');
+}
+
+// playback rate
+sharedParams.addNumber('playbackRate', 'Playback Rate', 0.5, 1.5, 0.01, 1, 'player');
+sharedParams.addNumber('volume', 'Volume', 0, 1, 0.01, 1, 'player');
+sharedParams.addNumber('seek', 'Seek', 0, score.duration, 1, 0, 'player');
+sharedParams.addTrigger('reload', 'reload', 'player');
 
 // define the configuration object to be passed to the `.ejs` template
 soundworks.server.setClientConfigDefinition((clientType, config, httpRequest) => {
   return {
     clientType: clientType,
-    socketIO: config.socketIO,
+    env: config.env,
     appName: config.appName,
+    socketIO: config.socketIO,
     version: config.version,
     defaultType: config.defaultClient,
     assetsDomain: config.assetsDomain,
