@@ -1,17 +1,26 @@
 import 'source-map-support/register';
 import * as soundworks from 'soundworks/server';
 import SharedExperience from './SharedExperience';
-import score from './score';
+import score from '../shared/score';
+import fs from 'fs';
+import path from 'path';
 
-import defaultConfig from './config/default';
+const configName = process.env.ENV || 'default';
+const configPath = path.join(__dirname, 'config', configName);
 
-let config = null;
+let config;
 
-switch(process.env.ENV) {
-  default:
-    config = defaultConfig;
-    break;
+try {
+  config = require(configPath).default;
+} catch(err) {
+  console.error(`Invalid ENV "${configName}", file "${configPath}.js" not found`);
+  console.error(err.stack);
+  process.exit(1);
 }
+
+
+if (process.env.PORT)
+  config.port = process.ENV.PORT;
 
 // configure express environment ('production' enables cache system)
 process.env.NODE_ENV = config.env;
@@ -20,19 +29,14 @@ config.appName = score.title;
 // configure setup
 const labels = Object.keys(score.parts);
 config.setup.labels = labels;
-config.setup.maxClientsPerPosition = 10;
-// add the score to the configuration
-config.score = score;
-// configure delay between conductor trigger and actual execution
-config.conductorDelay = 2; // in seconds
 
 // initialize application with configuration options.
 soundworks.server.init(config);
 
 const sharedParams = soundworks.server.require('shared-params');
-sharedParams.addText('numClients', 'Number Clients Ready', 0, 'conductor');
 
-sharedParams.addEnum('transport', 'Transport', ['Start', 'Pause', 'Stop'], 'Stop', null);
+sharedParams.addText('numClients', 'Number Clients Ready', 0, ['conductor']);
+sharedParams.addEnum('transport', 'Transport', ['Start', 'Pause', 'Stop'], 'Stop', ['conductor']);
 sharedParams.addText('currentSection', 'Current Section', '');
 
 for (let key in score.sections) {
@@ -41,12 +45,11 @@ for (let key in score.sections) {
   const sec = section.time % 60;
   const label = `${section.label} - ${min}:${sec} (${section.time} sec)`;
   // send to 'dummy' client
-  sharedParams.addTrigger(key, label, null);
+  sharedParams.addTrigger(key, label, ['conductor']);
 }
 
-sharedParams.addNumber('seek', 'Seek', 0, score.duration, 1, 0, null);
-sharedParams.addNumber('playbackRate', 'Playback Rate', 0.5, 1.5, 0.01, 1, null);
-
+sharedParams.addNumber('seek', 'Seek', 0, score.duration, 1, 0, ['conductor']);
+// sharedParams.addNumber('playbackRate', 'Playback Rate', 0.5, 1.5, 0.01, 1, null);
 // volumes
 sharedParams.addNumber('volume:performers', 'Volume performers', 0, 1, 0.01, 1, null);
 sharedParams.addNumber('volume:env', 'Volume environments', 0, 1, 0.01, 1, null);
@@ -64,15 +67,14 @@ soundworks.server.setClientConfigDefinition((clientType, config, httpRequest) =>
     clientType: clientType,
     env: config.env,
     appName: config.appName,
-    socketIO: config.socketIO,
+    websockets: config.websockets,
     version: config.version,
     defaultType: config.defaultClient,
-    assetsDomain: config.assetsDomain,
-    fullScreen: false,
+    assetsDomain: config.assetsDomain
   };
 });
 
 // Create the experience activity.
-const experience = new SharedExperience(['player', 'conductor']);
+const experience = new SharedExperience(['player', 'conductor'], score);
 // Start the application.
 soundworks.server.start();

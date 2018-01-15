@@ -1,9 +1,9 @@
 import { Experience, View, client } from 'soundworks/client';
 
-const viewTemplate = `
+const template = `
   <div class="video-wrapper">
     <video id="video" controls></video>
-  <div>
+  </div>
   <% if (!isEnv) { %>
   <button class="btn" id="reload">Reload</button>
   <p id="infos">
@@ -16,21 +16,20 @@ const viewTemplate = `
 
 
 class PlayerExperience extends Experience {
-  constructor(score, fullScreen) {
+  constructor(score) {
     super();
 
-    const features = fullScreen ? ['full-screen'] : [];
-    this.platform = this.require('platform', { features });
+    this.score = score;
+
+    this.platform = this.require('platform', { features: [] });
     this.placer = this.require('placer');
     this.sharedParams = this.require('shared-params');
-    this.sharedConfig = this.require('shared-config');
-    this.sync = this.require('sync');
-    this.scheduler = this.require('scheduler');
+    this.syncScheduler = this.require('sync-scheduler');
     this.videoLoader = this.require('video-loader');
 
-    this.onVideoLoaded = this.onVideoLoaded.bind(this);
-    this.onSectionChange = this.onSectionChange.bind(this);
     this.onTransportChange = this.onTransportChange.bind(this);
+    this.onUpdateTime = this.onUpdateTime.bind(this);
+
     this.updateLabel = this.updateLabel.bind(this);
     this.onFirstPlay = this.onFirstPlay.bind(this);
     this.reload = this.reload.bind(this);
@@ -39,70 +38,59 @@ class PlayerExperience extends Experience {
     this.isReady = false; // don't listen controls if not ready
   }
 
-  init() {
-    const score = this.sharedConfig.get('score');
-    this.part = score.parts[client.label];
-    this.sections = score.sections;
+  start() {
+    super.start();
+
+    this.part = this.score.parts[client.label];
 
     if (this.part.type === 'env')
       this.isEnv = true;
 
-    this.videoLoader
-      .load(this.part.file)
-      .then(this.onVideoLoaded);
-
     // initialize the view
-    this.viewTemplate = viewTemplate;
-    this.viewContent = {
+    const model = {
       sectionLabel: `<span class="orange soft-blink">start the video and wait for the beginning</span>`,
       part: client.label,
       isEnv: this.isEnv,
     };
-    this.viewEvents = {
+
+    const events = {
       'touchstart #reload': () => this.reload(true),
-    },
-    this.viewCtor = View;
-    this.view = this.createView();
+    };
+
+    this.view = new View(template, model, events, {});
+
+    Promise.all([this.show(), this.videoLoader.load(this.part.file)])
+      .then(([empty, objectUrl]) => {
+
+        this.$video = this.view.$el.querySelector('#video');
+        this.$video.src = objectUrl;
+
+        this.receive('transport', this.onTransportChange);
+        this.receive('updateTime', this.onUpdateTime);
+
+        // this.sharedParams.addParamListener('playbackRate', (value) => this.$video.playbackRate = value);
+        // this.sharedParams.addParamListener('seek', (value) => this.$video.currentTime = value);
+        this.sharedParams.addParamListener('reload', () => this.reload(false));
+
+        if (this.part.type !== 'env')
+          this.sharedParams.addParamListener('volume:performers', (value) => this.$video.volume = value);
+        else
+          this.sharedParams.addParamListener(`volume:env:${client.label}`, (value) => this.$video.volume = value);
+
+        // update label according to video current time
+        this.$video.addEventListener('timeupdate', this.updateLabel);
+        this.$video.addEventListener('play', this.onFirstPlay);
+      });
   }
 
-  onVideoLoaded(objectUrl) {
-    this.$video.src = objectUrl;
-  }
-
-  start() {
-    super.start();
-
-    if (!this.hasStarted)
-      this.init();
-
-    this.show();
-
-    this.$video = this.view.$el.querySelector('#video');
-
-    this.receive('transport', this.onTransportChange);
-    this.receive('section', this.onSectionChange);
-
-    this.sharedParams.addParamListener('playbackRate', (value) => this.$video.playbackRate = value);
-    this.sharedParams.addParamListener('seek', (value) => this.$video.currentTime = value);
-    this.sharedParams.addParamListener('reload', () => this.reload(false));
-
-    if (this.part.type !== 'env')
-      this.sharedParams.addParamListener('volume:performers', (value) => this.$video.volume = value);
-    else
-      this.sharedParams.addParamListener(`volume:env:${client.label}`, (value) => this.$video.volume = value);
-
-    // update label according to video current time
-    this.$video.addEventListener('timeupdate', this.updateLabel);
-    this.$video.addEventListener('play', this.onFirstPlay);
-  }
-
+  // @todo - remove that, use platform hook...
   onFirstPlay() {
     this.$video.pause();
     // remove controls
     this.$video.removeAttribute('controls');
 
     if (!this.isEnv)
-      alert('click "ok" and wait for the beggining...');
+      alert('click "ok" and wait for the beginning...');
 
     this.isReady = true; // don't listen controls if not ready
     // feedback for the controller
@@ -110,31 +98,59 @@ class PlayerExperience extends Experience {
     this.$video.removeEventListener('play', this.onFirstPlay);
   }
 
-  onSectionChange(time) {
-    if (!this.$video.paused)
-      this.$video.pause();
+  onTransportChange(state, transportTime, triggerSyncTime) {
+    if (!this.isReady)
+      return;
 
-    this.$video.currentTime = time;
-  }
+    console.log(state, transportTime, triggerSyncTime);
+    const currentSyncTime = this.syncScheduler.currentTime;
 
-  onTransportChange(value, time, triggerSyncTime) {
-    if (!this.isReady) return;
-
-    let currentSyncTime = this.sync.getSyncTime();
-
-    if (value === 'Stop' || value === 'Pause') {
-      this.$video.pause();
-      this.$video.currentTime = time;
-    } else if (value === 'Start') {
-      if (triggerSyncTime < currentSyncTime) {
+    // message received to late execute now and compensate if state is Start
+    if (triggerSyncTime < currentSyncTime) {
+      if (state === 'Start' ) {
         const decay = currentSyncTime - triggerSyncTime;
-        const startTime = time + decay;
 
-        this.$video.currentTime = time + decay;
+        this.$video.currentTime = transportTime + decay;
         this.$video.play();
       } else {
-        this.scheduler.defer(() => this.$video.play(), triggerSyncTime);
+        this.$video.pause();
+        this.$video.currentTime = transportTime;
       }
+
+    } else {
+      // defer execution to triggerSyncTime
+      this.syncScheduler.defer(() => {
+        if (state === 'Start') {
+          this.$video.currentTime = transportTime;
+          this.$video.play();
+        } else {
+          this.$video.pause();
+          this.$video.currentTime = transportTime;
+        }
+      }, triggerSyncTime);
+    }
+  }
+
+  // this is triggered every tickPeriod by the server to maintain every client
+  // into an acceptable state, or recover if a problem occured
+  onUpdateTime(transportTime, triggerSyncTime) {
+    if (!this.isReady)
+      return;
+
+    // console.log(transportTime, triggerSyncTime);
+    const syncTime = this.syncScheduler.currentTime;
+
+    // just wait for the next message if received too late
+    if (triggerSyncTime > syncTime) {
+      this.syncScheduler.defer(() => {
+        const videoCurrentTime = this.$video.currentTime;
+        const jit = Math.abs(transportTime - videoCurrentTime);
+        // let's assume < 100ms is ok
+        // if larger seek to transportTime
+        if (jit > 0.1) {
+          this.$video.currentTime = transportTime;
+        }
+      }, triggerSyncTime);
     }
   }
 
@@ -148,15 +164,18 @@ class PlayerExperience extends Experience {
   }
 
   updateLabel() {
-    if (this.isEnv) return;
+    if (this.isEnv)
+      return;
+
+    const sections = this.score.sections;
 
     const currentTime = this.$video.currentTime;
-    const names = Object.keys(this.sections);
+    const names = Object.keys(sections);
     let label = null;
 
     for (let i = 0; i < names.length; i++) {
-      const section = this.sections[names[i]];
-      const next = this.sections[names[i + 1]];
+      const section = sections[names[i]];
+      const next = sections[names[i + 1]];
 
       if (next) {
         if (!label && currentTime >= section.time && currentTime < next.time) {
@@ -169,8 +188,8 @@ class PlayerExperience extends Experience {
       }
     };
 
-    if (this.view.content.sectionLabel !== label) {
-      this.view.content.sectionLabel = label;
+    if (this.view.model.sectionLabel !== label) {
+      this.view.model.sectionLabel = label;
       this.view.render('#section-label');
     }
   }

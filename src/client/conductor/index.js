@@ -1,14 +1,19 @@
 import * as soundworks from 'soundworks/client';
-import viewTemplates from '../shared/viewTemplates';
-import viewContent from '../shared/viewContent';
+import serviceViews from '../shared/serviceViews';
 import Conductor from './Conductor';
+import score from '../../shared/score';
 
 window.addEventListener('load', () => {
-  const config = window.soundworksConfig;
-  soundworks.client.init(config.clientType, config);
-  soundworks.client.setViewContentDefinitions(viewContent);
-  soundworks.client.setViewTemplateDefinitions(viewTemplates);
+  const config = Object.assign({
+    appContainer: '#container'
+  }, window.soundworksConfig);
 
-  const conductor = new Conductor();
+  soundworks.client.init(config.clientType, config);
+  soundworks.client.setServiceInstanciationHook((id, instance) => {
+    if (serviceViews.has(id))
+      instance.view = serviceViews.get(id, config);
+  });
+
+  const conductor = new Conductor(score);
   soundworks.client.start();
 });

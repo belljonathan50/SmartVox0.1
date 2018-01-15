@@ -18,27 +18,16 @@ class VideoLoader extends Service {
   constructor() {
     super(SERVICE_ID, false);
 
-    const defaults = {
-      src: null,
-    };
+    const defaults = { src: null };
 
     this.configure(defaults);
-  }
-
-  init() {
-    this.viewTemplate = template;
-    this.viewContent = { state: 'loading' };
-    this.viewCtor = SegmentedView;
-    this.viewOptions = {};
-
-    this.view = this.createView();
   }
 
   start() {
     super.start();
 
-    if (!this.hasStarted)
-      this.init();
+    const model = { state: 'loading' };
+    this.view = new SegmentedView(template, model, {}, {});
 
     this.ready();
   }
@@ -46,7 +35,7 @@ class VideoLoader extends Service {
   load(src) {
     this.show();
 
-    this.view.content.state = 'loading';
+    this.view.model.state = 'loading';
     this.view.render('.section-center');
 
     return new Promise((resolve, reject) => {
@@ -59,8 +48,8 @@ class VideoLoader extends Service {
           resolve(window.URL.createObjectURL(res.response));
           this.hide();
         } else {
-          this.view.content.state = 'error';
-          this.view.content.src = new String(src);
+          this.view.model.state = 'error';
+          this.view.model.src = new String(src);
           this.view.render('.section-center');
         }
       };

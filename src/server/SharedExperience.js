@@ -5,72 +5,106 @@ import { Experience } from 'soundworks/server';
  * Server-side 'player' experience.
  */
 export default class SharedExperience extends Experience {
-  constructor(clientType) {
+  constructor(clientType, score) {
     super(clientType);
+
+    this.score = score;
 
     this.placer = this.require('placer');
     this.sync = this.require('sync');
-    // this.osc = this.require('osc');
+    this.syncScheduler = this.require('sync-scheduler');
     this.sharedParams = this.require('shared-params');
 
-    this.sharedConfig = this.require('shared-config');
-    this.sharedConfig.share('score', 'player');
-    this.sharedConfig.share('score', 'conductor');
-
-    // configure conductor
     this.players = new Set();
 
-    this.currentTime = 0;
-    this.startTime = null;
+    this.currentTransportTime = 0;
+    this.lastSyncTime = null;
+
+    this.state = 'Stop';
+    this.tickId = null;
+    this.tickPeriod = 1000; // 1 second
+
+    this.propagationDelay = 0.2; //
+
+    this.tick = this.tick.bind(this);
+    this.updateTransport = this.updateTransport.bind(this);
+  }
+
+  // update logical time every `this.tickPeriod`
+  tick() {
+    // update current time
+    const syncTime = this.sync.getSyncTime();
+    const triggerTime = syncTime + this.propagationDelay;
+    const dt = syncTime - this.lastSyncTime;
+    this.currentTransportTime += dt;
+
+    // console.log('tick', this.currentTransportTime);
+    this.broadcast('player', null, 'updateTime', this.currentTransportTime, triggerTime);
+
+    this.lastSyncTime = syncTime;
+
+    this.tickId = setTimeout(this.tick, this.tickPeriod);
+  }
+
+  updateTransport(value) {
+    // prevent multiple calls
+    if (this.state === value)
+      return;
+
+    this.state = value;
+
+    const syncTime = this.sync.getSyncTime();
+
+    switch (value) {
+      case 'Start':
+        // currentTransportTime shouln't be updated here
+        this.lastSyncTime = syncTime;
+        this.tickId = setTimeout(this.tick, this.tickPeriod);
+        break;
+      case 'Pause':
+        clearTimeout(this.tickId);
+
+        if (this.lastSyncTime) {
+          const dt = syncTime - this.lastSyncTime;
+          this.currentTransportTime += dt;
+        }
+        break;
+      case 'Stop':
+        clearTimeout(this.tickId);
+
+        this.currentTransportTime = 0;
+        this.lastSyncTime = null;
+        break;
+    }
+
+    console.log(this.state, this.currentTransportTime);
+
+    const triggerTime = syncTime + this.propagationDelay;
+    this.broadcast('player', null, 'transport', value, this.currentTransportTime, triggerTime);
+    // this.osc.send('/transport', [value.toLowerCase(), delay]);
+  }
+
+  pauseAndSetTransportTime(time) {
+    clearTimeout(this.tickId);
+
+    this.state = 'Pause';
+    this.currentTransportTime = time;
+
+    const triggerTime = this.sync.getSyncTime() + this.propagationDelay;
+    this.broadcast('player', null, 'transport', 'Pause', this.currentTransportTime, triggerTime);
   }
 
   start() {
-    const sections = this.sharedConfig.get('score.sections');
-    const delay = this.sharedConfig.get('conductorDelay');
-    // added delay between a trigger and its execution
-    // listen sections
-    Object.keys(sections).forEach((sectionName) => {
-      let calledOnce = false;
+    this.sharedParams.addParamListener('transport', this.updateTransport);
 
+    Object.keys(this.score.sections).forEach(sectionName => {
       this.sharedParams.addParamListener(sectionName, () => {
-        // ignore trigger when listener added - bug to be fixed in soundworks
-        if (!calledOnce) {
-          calledOnce = true;
-          return;
-        }
-
-        this.currentTime = sections[sectionName].time;
-        this.broadcast('player', null, 'section', this.currentTime);
-        console.log(sectionName, this.currentTime);
-        // this.osc.send('/section', [this.currentTime]);
+        this.pauseAndSetTransportTime(this.score.sections[sectionName].time);
       });
     });
 
-    this.sharedParams.addParamListener('transport', (value) => {
-      const syncTime = this.sync.getSyncTime();
-
-      switch (value) {
-        case 'Start':
-          this.startTime = syncTime;
-          break;
-        case 'Pause':
-          if (!this.startTime) {
-            this.currentTime = 0;
-          } else {
-            const dt = syncTime - this.startTime;
-            this.currentTime += dt;
-          }
-          break;
-        case 'Stop':
-          this.currentTime = 0;
-          this.startTime = null;
-          break;
-      }
-
-      console.log(value, this.currentTime);
-      const triggerTime = syncTime + delay;
-      this.broadcast('player', null, 'transport', value, this.currentTime, triggerTime);
-      // this.osc.send('/transport', [value.toLowerCase(), delay]);
+    this.sharedParams.addParamListener('seek', value => {
+      this.pauseAndSetTransportTime(value);
     });
   }
 
@@ -80,6 +114,22 @@ export default class SharedExperience extends Experience {
     if (client.type === 'player') {
       this.receive(client, 'ready', () => {
         this.players.add(client);
+
+        // send current state of the application to the new client
+        let currentTransportTime = this.currentTransportTime;
+        const syncTime = this.sync.getSyncTime();
+        const triggerTime = syncTime + this.propagationDelay;
+
+        // give a proper currentTime as we are probably between two ticks
+        if (this.state === 'Start') {
+          const dt = syncTime - this.lastSyncTime;
+          currentTransportTime = currentTransportTime + dt;
+        }
+
+        console.log('connection', currentTransportTime, triggerTime);
+        this.send(client, 'transport', this.state, currentTransportTime, triggerTime);
+
+        // update controller
         this.sharedParams.update('numClients', this.players.size);
       });
     }

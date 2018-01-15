@@ -46,7 +46,7 @@ export default {
     // list of predefined coordinates given as an array of `[x:Number, y:Number]`
     coordinates: null,
     // maximum number of clients allowed in a position
-    maxClientsPerPosition: 1,
+    maxClientsPerPosition: 100,
     // maximum number of positions (may limit or be limited by the number of
     // labels and/or coordinates)
     capacity: Infinity,
