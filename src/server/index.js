@@ -18,7 +18,6 @@ try {
   process.exit(1);
 }
 
-
 if (process.env.PORT)
   config.port = process.env.PORT;
 
