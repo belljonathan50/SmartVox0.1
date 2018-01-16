@@ -20,7 +20,7 @@ try {
 
 
 if (process.env.PORT)
-  config.port = process.ENV.PORT;
+  config.port = process.env.PORT;
 
 // configure express environment ('production' enables cache system)
 process.env.NODE_ENV = config.env;
