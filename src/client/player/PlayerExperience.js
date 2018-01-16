@@ -145,9 +145,9 @@ class PlayerExperience extends Experience {
       this.syncScheduler.defer(() => {
         const videoCurrentTime = this.$video.currentTime;
         const jit = Math.abs(transportTime - videoCurrentTime);
-        // let's assume < 100ms is ok
-        // if larger seek to transportTime
-        if (jit > 0.1) {
+        // we assume a large possible jitter as we have no f****** idea of the
+        // video clock resolution... this should be explored
+        if (jit > 0.5) {
           this.$video.currentTime = transportTime;
         }
       }, triggerSyncTime);
