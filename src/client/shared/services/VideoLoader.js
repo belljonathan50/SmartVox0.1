@@ -27,7 +27,11 @@ class VideoLoader extends Service {
     super.start();
 
     const model = { state: 'loading' };
-    this.view = new SegmentedView(template, model, {}, {});
+
+    this.view = new SegmentedView(template, model, {}, {
+      className: ['foreground'],
+      id: 'video-loader',
+    });
 
     this.ready();
   }
@@ -35,8 +39,12 @@ class VideoLoader extends Service {
   load(src) {
     this.show();
 
+    const $container = document.querySelector('#container');
+
     this.view.model.state = 'loading';
     this.view.render('.section-center');
+    this.view.show();
+    this.view.appendTo($container);
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -46,7 +54,8 @@ class VideoLoader extends Service {
 
         if (res.status === 200) {
           resolve(window.URL.createObjectURL(res.response));
-          this.hide();
+          this.view.hide();
+          this.view.remove();
         } else {
           this.view.model.state = 'error';
           this.view.model.src = new String(src);

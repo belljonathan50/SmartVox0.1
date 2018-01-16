@@ -10,6 +10,12 @@
   position: relative;
 }
 
+#video-loader {
+  position: absolute;
+  z-index: 30;
+  background-color: #000000;
+}
+
 .video-wrapper {
   height: 0;
   padding-bottom: 56.25%;

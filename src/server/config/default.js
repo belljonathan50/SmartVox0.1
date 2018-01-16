@@ -17,7 +17,7 @@ export default {
 
   // version of application, can be used to force reload css and js files
   // from server (cf. `html/default.ejs`)
-  version: '0.0.1',
+  version: '1.0.0',
 
   // name of the default client type, i.e. the client that can access the
   // application at its root URL
