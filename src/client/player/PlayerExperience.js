@@ -85,17 +85,20 @@ class PlayerExperience extends Experience {
 
   // @todo - remove that, use platform hook...
   onFirstPlay() {
-    this.$video.pause();
-    // remove controls
-    this.$video.removeAttribute('controls');
+    setTimeout(() => {
+      this.$video.pause()
 
-    if (!this.isEnv)
-      alert('click "ok" and wait for the beginning...');
+      // remove controls
+      this.$video.removeAttribute('controls');
 
-    this.isReady = true; // don't listen controls if not ready
-    // feedback for the controller
-    this.send('ready');
-    this.$video.removeEventListener('play', this.onFirstPlay);
+      if (!this.isEnv)
+        alert('click "ok" and wait for the beginning...');
+
+      this.isReady = true; // don't listen controls if not ready
+      // feedback for the controller
+      this.send('ready');
+      this.$video.removeEventListener('play', this.onFirstPlay);
+    }, 0);
   }
 
   onTransportChange(state, transportTime, triggerSyncTime) {
