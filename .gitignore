@@ -7,10 +7,12 @@
 # Application instance specific
 /logs
 /db
+/bin/.browserify-cache.json
 
-# ignore junk files
+# junk files
 npm-debug.log
 .DS_Store
 Thumbs.db
+package-lock.json
 
 TODOS.md

@@ -4,10 +4,10 @@ import PlayerExperience from './PlayerExperience';
 import VideoLoader from '../shared/services/VideoLoader';
 import score from '../../shared/score';
 
-window.addEventListener('load', () => {
-  const config = Object.assign({
-    appContainer: '#container'
-  }, window.soundworksConfig);
+function bootstrap() {
+  document.body.classList.remove('loading');
+
+  const config = Object.assign({ appContainer: '#container' }, window.soundworksConfig);
 
   soundworks.client.init(config.clientType, config);
   soundworks.client.setServiceInstanciationHook((id, instance) => {
@@ -17,4 +17,6 @@ window.addEventListener('load', () => {
 
   const experience = new PlayerExperience(score);
   soundworks.client.start();
-});
+}
+
+window.addEventListener('load', bootstrap);
