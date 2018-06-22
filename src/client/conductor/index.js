@@ -4,6 +4,8 @@ import Conductor from './Conductor';
 import score from '../../shared/score';
 
 window.addEventListener('load', () => {
+  document.body.classList.remove('loading');
+
   const config = Object.assign({
     appContainer: '#container'
   }, window.soundworksConfig);
