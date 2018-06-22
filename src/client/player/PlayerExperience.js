@@ -105,7 +105,7 @@ class PlayerExperience extends Experience {
     if (!this.isReady)
       return;
 
-    console.log(state, transportTime, triggerSyncTime);
+    // console.log(state, transportTime, triggerSyncTime);
     const currentSyncTime = this.syncScheduler.currentTime;
 
     // message received to late execute now and compensate if state is Start
