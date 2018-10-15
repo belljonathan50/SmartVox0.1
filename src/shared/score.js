@@ -1,6 +1,6 @@
 // score definition
 const score = {
-  title: 'Šîr HaŠîrîm \ Hoheslied',
+  title: 'Šîr HaŠîrîm - Hoheslied',
   duration: 12 * 60, 
   parts: {
     // links
@@ -9,11 +9,11 @@ const score = {
       type: 'performer',
       file: 'videos/s1.mp4',
     },
-    'soprano1': {
+    'soprano2': {
       type: 'performer',
       file: 'videos/s2.mp4',
     },
-    'soprano1': {
+    'soprano3': {
       type: 'performer',
       file: 'videos/s3.mp4',
     },
