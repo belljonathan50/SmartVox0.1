@@ -26,19 +26,19 @@ const score = {
       file: 'videos/a2.mp4',
     },
     'alto3': {
-      type: 'env',
+      type: 'performer',
       file: 'videos/a3.mp4',
     },
     'tenor': {
-      type: 'env',
+      type: 'performer',
       file: 'videos/t.mp4',
     },
     'bass1': {
-      type: 'env',
+      type: 'performer',
       file: 'videos/b1.mp4',
     },
     'bass2': {
-      type: 'env',
+      type: 'performer',
       file: 'videos/b2.mp4',
     },
     'tape12': {
