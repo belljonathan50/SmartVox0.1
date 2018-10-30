@@ -1,7 +1,7 @@
 // score definition
 const score = {
   title: 'Šîr HaŠîrîm - Hoheslied',
-  duration: 12 * 60, 
+  duration: 19 * 60, 
   parts: {
     // links
 
